@@ -1,0 +1,21 @@
+# Zephyr standard build directory
+build/
+
+# Zephyr/West cached files
+.west/
+*.d
+*.obj
+*.su
+
+# Python virtual environment
+.venv/
+__pycache__/
+
+# VSCode settings (only ignore local IDE state, keep settings.json if needed, but safe to ignore cache)
+.vscode/.browse.c_cpp.db
+.vscode/ipch/
+.vscode/c_cpp_properties.json
+
+# OS specific files
+.DS_Store
+Thumbs.db
