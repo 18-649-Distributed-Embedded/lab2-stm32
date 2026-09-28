@@ -20,8 +20,7 @@ static volatile int32_t isr_left_vel = 0;
 static volatile int16_t isr_right_vel = 0;
 
 // HARDWARE TIMER ISR (Via Zephyr k_timer to avoid Clock-Gating conflicts)
-static void pid_timer_isr(struct k_timer *timer_id)
-{
+static void pid_timer_isr(struct k_timer *timer_id) {
     // Read wheel encoder ticks
     uint32_t left_curr = encoders_get_left_ticks();
     uint16_t right_curr = encoders_get_right_ticks();
@@ -47,13 +46,14 @@ K_TIMER_DEFINE(pid_timer, pid_timer_isr, NULL);
 #define DRIVETRAIN_THREAD_STACK_SIZE 1024
 #define DRIVETRAIN_THREAD_PRIORITY   1 // High priority for control loop
 
-static void drivetrain_thread_func(void *p1, void *p2, void *p3)
-{
+static void drivetrain_thread_func(void *p1, void *p2, void *p3) {
     int debug_counter = 0;
     
     // PID State
-    int32_t filtered_tps = 0;
-    int32_t integral = 0;
+    int32_t filtered_tps_l = 0;
+    int32_t filtered_tps_r = 0;
+    int32_t integral_l = 0;
+    int32_t integral_r = 0;
 
     while (1) {
         // Block until ISR triggers (1kHz loop)
@@ -67,8 +67,10 @@ static void drivetrain_thread_func(void *p1, void *p2, void *p3)
         // Safety interlock / Brake
         if (atomic_get(&system_safety_flags) != 0 || brake_active > 0) {
             l298n_brake();
-            integral = 0;       // Reset integral on brake to prevent windup
-            filtered_tps = 0;   // Reset filter
+            integral_l = 0;
+            integral_r = 0;
+            filtered_tps_l = 0;
+            filtered_tps_r = 0;
             
             if (++debug_counter >= 1000) {
                 DEBUG_PRINT("[Drivetrain] BRAKED/ESTOP. Throttle: %d, BrakeActive: %d, Flags: %d\n", throttle, brake_active, (int)atomic_get(&system_safety_flags));
@@ -80,57 +82,57 @@ static void drivetrain_thread_func(void *p1, void *p2, void *p3)
         // ==========================================
         // 1. Calculate Target Ticks Per Second (TPS)
         // ==========================================
-        // Max Throttle Delta = 127. 
-        // Max Motor RPM ~330 RPM = 5.5 rev/s. 
-        // 30:1 Gearbox * 11 PPR * 4 edges = 1320 ticks/wheel_rev.
-        // Max TPS = 5.5 * 1320 = ~7260 ticks/s.
-        // Scale Factor = 7260 / 127 ≈ 57
         int32_t target_tps = ((int32_t)throttle - 127) * 57;
 
         // ==========================================
         // 2. Calculate Current Velocity (TPS)
         // ==========================================
-        // isr_right_vel is delta over 1ms. Multiply by 1000 for TPS.
-        // Note: The left encoder is broken, so we solely rely on right_vel.
-        int32_t instantaneous_tps = (int16_t)isr_right_vel * 1000;
+        int32_t inst_tps_l = (int32_t)isr_left_vel * 1000;
+        int32_t inst_tps_r = (int16_t)isr_right_vel * 1000;
         
         // Low-Pass Filter to smooth out 1kHz quantization noise
-        filtered_tps = (filtered_tps * 3 + instantaneous_tps) / 4;
+        filtered_tps_l = (filtered_tps_l * 3 + inst_tps_l) / 4;
+        filtered_tps_r = (filtered_tps_r * 3 + inst_tps_r) / 4;
 
         // ==========================================
         // 3. PI Controller
         // ==========================================
-        int32_t error = target_tps - filtered_tps;
+        int32_t error_l = target_tps - filtered_tps_l;
+        int32_t error_r = target_tps - filtered_tps_r;
         
-        integral += error;
+        integral_l += error_l;
+        integral_r += error_r;
 
-        // Anti-Windup (Limit integral to ~100% duty cycle equivalent)
-        // If Ki divisor is 2000, 2000 * 1024 = 2,048,000 max integral sum.
+        // Anti-Windup
         int32_t integral_max = 2048000; 
-        if (integral > integral_max) integral = integral_max;
-        if (integral < -integral_max) integral = -integral_max;
+        if (integral_l > integral_max) integral_l = integral_max;
+        if (integral_l < -integral_max) integral_l = -integral_max;
+        if (integral_r > integral_max) integral_r = integral_max;
+        if (integral_r < -integral_max) integral_r = -integral_max;
 
-        // Gains (Tuned for 1kHz discrete-time loop)
-        // Kp = 0.5 (Integer div 2), Ki = 0.0005 (Integer div 2000)
-        int32_t p_term = error / 2;
-        int32_t i_term = integral / 2000;
-        
-        int32_t out = p_term + i_term;
+        // Gains (Kp = 0.5, Ki = 0.0005)
+        int32_t p_term_l = error_l / 2;
+        int32_t i_term_l = integral_l / 2000;
+        int32_t out_l = p_term_l + i_term_l;
 
-        // Bound to L298N limits (-1024 to 1024)
-        if (out > 1024) out = 1024;
-        if (out < -1024) out = -1024;
+        int32_t p_term_r = error_r / 2;
+        int32_t i_term_r = integral_r / 2000;
+        int32_t out_r = p_term_r + i_term_r;
 
-        // Apply identical effort to both wheels (since Left encoder is broken)
-        l298n_set_right(out);
-        l298n_set_left(out);
+        // Bound outputs
+        if (out_l > 1024) out_l = 1024;
+        if (out_l < -1024) out_l = -1024;
+        if (out_r > 1024) out_r = 1024;
+        if (out_r < -1024) out_r = -1024;
+
+        // Apply independent effort to both wheels
+        l298n_set_left(out_l);
+        l298n_set_right(out_r);
 
         // Debug logging (1Hz)
         if (++debug_counter >= 1000) {
-            // Note: If the motor runs away (instant max speed), it means the 
-            // encoder phase A/B wires are swapped relative to motor polarity!
-            DEBUG_PRINT("[PID] Tgt_TPS: %d | Cur_TPS: %d | Err: %d | Out: %d\n", 
-                        target_tps, filtered_tps, error, out);
+            DEBUG_PRINT("[PID] Tgt: %d | L_TPS: %d, R_TPS: %d | L_Out: %d, R_Out: %d\n", 
+                        target_tps, filtered_tps_l, filtered_tps_r, out_l, out_r);
             debug_counter = 0;
         }
     }
@@ -139,8 +141,7 @@ static void drivetrain_thread_func(void *p1, void *p2, void *p3)
 K_THREAD_STACK_DEFINE(drivetrain_stack, DRIVETRAIN_THREAD_STACK_SIZE);
 struct k_thread drivetrain_thread_data;
 
-void drivetrain_init(void)
-{
+void drivetrain_init(void) {
     left_last_ticks = encoders_get_left_ticks();
     right_last_ticks = encoders_get_right_ticks();
 

@@ -18,8 +18,7 @@ static const struct device *uart_dev = DEVICE_DT_GET(DT_NODELABEL(usart2));
 // Initialize safety interlock with WATCHDOG set (fail-safe by default until parser talks)
 atomic_t system_safety_flags = ATOMIC_INIT(BIT(SAFETY_FLAG_WATCHDOG_TIMEOUT));
 
-static void send_status_frame(void)
-{
+static void send_status_frame(void) {
     // Status frame: [0xBB][SafetyFlags][L_Curr_H][L_Curr_L][R_Curr_H][R_Curr_L][S_Curr_H][S_Curr_L][0x66]
     uint8_t frame[9];
     frame[0] = 0xBB;
@@ -44,8 +43,7 @@ static void send_status_frame(void)
     }
 }
 
-static void health_thread_func(void *p1, void *p2, void *p3)
-{
+static void health_thread_func(void *p1, void *p2, void *p3) {
     bool last_was_failsafe = true;
     uint32_t last_deadline_misses = 0;
 
@@ -83,8 +81,7 @@ static void health_thread_func(void *p1, void *p2, void *p3)
 K_THREAD_STACK_DEFINE(health_stack, HEALTH_THREAD_STACK_SIZE);
 struct k_thread health_thread_data;
 
-void health_init(void)
-{
+void health_init(void) {
     k_thread_create(&health_thread_data, health_stack,
                     K_THREAD_STACK_SIZEOF(health_stack),
                     health_thread_func,

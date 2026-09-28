@@ -11,8 +11,7 @@
 
 K_SEM_DEFINE(steering_sem, 0, 1);
 
-static void steering_thread_func(void *p1, void *p2, void *p3)
-{
+static void steering_thread_func(void *p1, void *p2, void *p3) {
     while (1) {
         // Event-driven: Wake instantly when a new command arrives, OR timeout every 50ms 
         // to guarantee a maximum latency of 50ms even if commands are sparse.
@@ -36,8 +35,7 @@ static void steering_thread_func(void *p1, void *p2, void *p3)
 K_THREAD_STACK_DEFINE(steering_stack, STEERING_THREAD_STACK_SIZE);
 struct k_thread steering_thread_data;
 
-void steering_init(void)
-{
+void steering_init(void) {
     k_thread_create(&steering_thread_data, steering_stack,
                     K_THREAD_STACK_SIZEOF(steering_stack),
                     steering_thread_func,

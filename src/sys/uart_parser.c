@@ -39,8 +39,7 @@ volatile uint32_t rx_byte_count = 0;
 volatile uint32_t last_cmd_time = 0;
 volatile uint32_t parse_success_count = 0;
 
-static void process_can_message(void)
-{
+static void process_can_message(void) {
     if (current_id == 0x020 && current_dlc >= 2) {
         // Msg_Heartbeat_Cockpit
         if (payload[1] == 0xFF) {
@@ -95,8 +94,7 @@ static void process_can_message(void)
     parse_success_count++;
 }
 
-static void uart_rx_isr(const struct device *dev, void *user_data)
-{
+static void uart_rx_isr(const struct device *dev, void *user_data) {
     uint8_t c;
     uart_irq_update(dev);
 
@@ -145,8 +143,7 @@ static void uart_rx_isr(const struct device *dev, void *user_data)
     }
 }
 
-int uart_parser_init(void)
-{
+int uart_parser_init(void) {
     if (!device_is_ready(uart_dev)) {
         DEBUG_PRINT("Error: UART device is not ready\n");
         return -1;
