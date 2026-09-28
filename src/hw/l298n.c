@@ -35,17 +35,17 @@ int l298n_init(void)
 void l298n_set_right(int16_t val)
 {
     if (val == 0) {
-        gpio_pin_set_dt(&dir_r1, GPIO_OUTPUT_LOW);
-        gpio_pin_set_dt(&dir_r2, GPIO_OUTPUT_LOW);
+        gpio_pin_set_dt(&dir_r1, 0);
+        gpio_pin_set_dt(&dir_r2, 0);
         pwm_set_pulse_dt(&pwm_r, 0);
     } else if (val > 0) {
-        gpio_pin_set_dt(&dir_r1, GPIO_OUTPUT_HIGH);
-        gpio_pin_set_dt(&dir_r2, GPIO_OUTPUT_LOW);
+        gpio_pin_set_dt(&dir_r1, 1);
+        gpio_pin_set_dt(&dir_r2, 0);
         uint32_t pulse = (pwm_r.period * (uint32_t)val) >> 10;
         pwm_set_pulse_dt(&pwm_r, pulse);
     } else {
-        gpio_pin_set_dt(&dir_r1, GPIO_OUTPUT_LOW);
-        gpio_pin_set_dt(&dir_r2, GPIO_OUTPUT_HIGH);
+        gpio_pin_set_dt(&dir_r1, 0);
+        gpio_pin_set_dt(&dir_r2, 1);
         uint32_t pulse = (pwm_r.period * (uint32_t)(-val)) >> 10;
         pwm_set_pulse_dt(&pwm_r, pulse);
     }
@@ -54,28 +54,30 @@ void l298n_set_right(int16_t val)
 void l298n_set_left(int16_t val)
 {
     if (val == 0) {
-        gpio_pin_set_dt(&dir_l1, GPIO_OUTPUT_LOW);
-        gpio_pin_set_dt(&dir_l2, GPIO_OUTPUT_LOW);
+        gpio_pin_set_dt(&dir_l1, 0);
+        gpio_pin_set_dt(&dir_l2, 0);
         pwm_set_pulse_dt(&pwm_l, 0);
     } else if (val > 0) {
-        gpio_pin_set_dt(&dir_l1, GPIO_OUTPUT_HIGH);
-        gpio_pin_set_dt(&dir_l2, GPIO_OUTPUT_LOW);
+        gpio_pin_set_dt(&dir_l1, 1);
+        gpio_pin_set_dt(&dir_l2, 0);
         uint32_t pulse = (pwm_l.period * (uint32_t)val) >> 10;
         pwm_set_pulse_dt(&pwm_l, pulse);
     } else {
-        gpio_pin_set_dt(&dir_l1, GPIO_OUTPUT_LOW);
-        gpio_pin_set_dt(&dir_l2, GPIO_OUTPUT_HIGH);
+        gpio_pin_set_dt(&dir_l1, 0);
+        gpio_pin_set_dt(&dir_l2, 1);
         uint32_t pulse = (pwm_l.period * (uint32_t)(-val)) >> 10;
         pwm_set_pulse_dt(&pwm_l, pulse);
     }
 }
 
 void l298n_brake(void) {
-    gpio_pin_set_dt(&dir_r1, GPIO_OUTPUT_LOW);
-    gpio_pin_set_dt(&dir_r2, GPIO_OUTPUT_LOW);
-    pwm_set_pulse_dt(&pwm_r, 0);
+    // Fast Motor Stop (Aggressive Braking) requires IN1=1, IN2=1, ENA=1
+    // This shorts the motor coils, dissipating the motor's kinetic energy instantly.
+    gpio_pin_set_dt(&dir_r1, 1);
+    gpio_pin_set_dt(&dir_r2, 1);
+    pwm_set_pulse_dt(&pwm_r, pwm_r.period); // 100% duty cycle
 
-    gpio_pin_set_dt(&dir_l1, GPIO_OUTPUT_LOW);
-    gpio_pin_set_dt(&dir_l2, GPIO_OUTPUT_LOW);
-    pwm_set_pulse_dt(&pwm_l, 0);
+    gpio_pin_set_dt(&dir_l1, 1);
+    gpio_pin_set_dt(&dir_l2, 1);
+    pwm_set_pulse_dt(&pwm_l, pwm_l.period); // 100% duty cycle
 }

@@ -8,11 +8,24 @@ import sys
 
 # Global state for the vehicle commands
 state_lock = threading.Lock()
-vehicle_steer = 0
-vehicle_throttle = 0
-vehicle_brake = 0
-vehicle_blinkers = 0
+vehicle_steer = 0        # -128 to 127
+vehicle_throttle = 127   # 0 to 255 (127 is center/idle)
+vehicle_brake = 0        # 0 or 1
+vehicle_blinkers = 0     # 0=Off, 1=Left, 2=Right, 3=Hazard
+test_button_active = 0   # 0 or 0xFF
+
 keep_running = True
+seq_num = 0
+
+def build_can_frame(can_id, payload):
+    packet = bytearray([0xAA])
+    packet.extend(struct.pack('<H', can_id))  # ID L, ID H
+    packet.append(len(payload))               # DLC
+    packet.extend(payload)                    # Payload bytes
+    chksum = sum(packet[1:]) & 0xFF           # Checksum
+    packet.append(chksum)
+    packet.append(0x55)                       # END
+    return packet
 
 def reader_thread(ser):
     global keep_running
@@ -60,41 +73,58 @@ def reader_thread(ser):
             break
 
 def sender_thread(ser):
-    global keep_running, vehicle_steer, vehicle_throttle, vehicle_brake, vehicle_blinkers
+    global keep_running, seq_num
     
     while keep_running:
         with state_lock:
-            # Assembly packet: [0xAA, Steer(L,H), Throttle(L,H), Brake(L,H), Blinkers, Checksum, 0x55]
-            packet = bytearray([0xAA])
+            # Generate CAN-over-UART frames
+            t = time.time()
             
-            # Encode signed 16-bit values as little-endian
-            steer_bytes = struct.pack('<h', vehicle_steer)
-            throttle_bytes = struct.pack('<h', vehicle_throttle)
-            brake_bytes = struct.pack('<h', vehicle_brake)
+            # 1Hz Turn Sync (50% duty)
+            turn_sync_led = 1 if (t % 1.0) < 0.5 else 0
+            # 2Hz Hazard Sync (50% duty)
+            hazard_sync_led = 1 if (t % 0.5) < 0.25 else 0
             
-            packet.extend(steer_bytes)
-            packet.extend(throttle_bytes)
-            packet.extend(brake_bytes)
-            packet.append(vehicle_blinkers)
+            # Msg_Heartbeat_Cockpit (ID: 0x020)
+            hb_payload = struct.pack('<BB', seq_num & 0xFF, test_button_active)
+            hb_frame = build_can_frame(0x020, hb_payload)
             
-            # Calculate checksum (sum of payload bytes)
-            chksum = sum(packet[1:]) & 0xFF
-            packet.append(chksum)
-            packet.append(0x55)
+            # Cmd_Brake (ID: 0x010)
+            brake_payload = struct.pack('<BB', seq_num & 0xFF, vehicle_brake)
+            brake_frame = build_can_frame(0x010, brake_payload)
+            
+            # Cmd_Motion (ID: 0x100) -> [Seq, Throttle, Steer, TurnReq]
+            motion_payload = struct.pack('<BBbB', seq_num & 0xFF, vehicle_throttle, vehicle_steer, vehicle_blinkers)
+            motion_frame = build_can_frame(0x100, motion_payload)
+            
+            # Cmd_Turn_Sync (ID: 0x200)
+            turn_payload = struct.pack('<BB', seq_num & 0xFF, turn_sync_led)
+            turn_frame = build_can_frame(0x200, turn_payload)
+            
+            # Cmd_Hazard_Sync (ID: 0x011)
+            hazard_payload = struct.pack('<BB', seq_num & 0xFF, hazard_sync_led)
+            hazard_frame = build_can_frame(0x011, hazard_payload)
+            
+            seq_num += 1
         
         try:
-            ser.write(packet)
+            # Send all multiplexed CAN frames
+            ser.write(hb_frame)
+            ser.write(brake_frame)
+            ser.write(motion_frame)
+            ser.write(turn_frame)
+            ser.write(hazard_frame)
         except:
             break
             
-        # STM32 watchdog is 150ms. Send every 50ms.
+        # Send everything every 50ms (20Hz)
         time.sleep(0.05)
 
 def main():
-    global keep_running, vehicle_steer, vehicle_throttle, vehicle_brake, vehicle_blinkers
+    global keep_running, vehicle_steer, vehicle_throttle, vehicle_brake, vehicle_blinkers, test_button_active
     
-    parser = argparse.ArgumentParser(description="STM32 UART Proxy")
-    parser.add_argument('-p', '--port', default='/dev/ttyACM0', help='Serial port')
+    parser = argparse.ArgumentParser(description="STM32 CAN-over-UART Proxy")
+    parser.add_argument('-p', '--port', default='/dev/ttyACM1', help='Serial port')
     parser.add_argument('-b', '--baud', default=115200, type=int, help='Baud rate')
     args = parser.parse_args()
 
@@ -105,13 +135,14 @@ def main():
         sys.exit(1)
 
     print(f"Connected to {args.port} at {args.baud} baud.")
-    print("Controls:")
-    print("  w/s : Throttle Forward/Reverse")
-    print("  a/d : Steer Left/Right")
-    print("  space : Brake")
-    print("  x : Stop (release throttle and brake)")
+    print("Controls (Mapped to CAN Dictionary Limits):")
+    print("  w/s : Throttle Forward/Reverse (0 to 255)")
+    print("  a/d : Steer Left/Right (-128 to 127)")
+    print("  space/b : Brake (Aggressive)")
+    print("  x : Stop (Center throttle and brake)")
     print("  c : Center steering")
-    print("  1/2/3 : Left Blinker / Right Blinker / Hazards (0 to clear)")
+    print("  1/2/3 : Left / Right / Hazards (0 to clear)")
+    print("  t : Toggle Local Test Button (E-Stop)")
     print("  q : Quit")
     print("-" * 50)
 
@@ -122,28 +153,27 @@ def main():
 
     try:
         while True:
-            # We use a simple blocking input.
-            cmd = input("\r\033[KCmd> ").strip().lower()
+            cmd = input("\r\033[KCmd> ").lower()
             
             with state_lock:
                 if cmd == 'q':
                     keep_running = False
                     break
                 elif cmd == 'w':
-                    vehicle_throttle = min(vehicle_throttle + 8000, 32767)
+                    vehicle_throttle = min(vehicle_throttle + 32, 255)
                     vehicle_brake = 0
                 elif cmd == 's':
-                    vehicle_throttle = max(vehicle_throttle - 8000, -32768)
+                    vehicle_throttle = max(vehicle_throttle - 32, 0)
                     vehicle_brake = 0
                 elif cmd == 'a':
-                    vehicle_steer = max(vehicle_steer - 10000, -32768)
+                    vehicle_steer = max(vehicle_steer - 32, -128)
                 elif cmd == 'd':
-                    vehicle_steer = min(vehicle_steer + 10000, 32767)
-                elif cmd == ' ':
-                    vehicle_brake = 32767
-                    vehicle_throttle = 0
+                    vehicle_steer = min(vehicle_steer + 32, 127)
+                elif cmd == ' ' or cmd == 'b':
+                    vehicle_brake = 1
+                    vehicle_throttle = 127
                 elif cmd == 'x':
-                    vehicle_throttle = 0
+                    vehicle_throttle = 127
                     vehicle_brake = 0
                 elif cmd == 'c':
                     vehicle_steer = 0
@@ -155,6 +185,13 @@ def main():
                     vehicle_blinkers = 0x03
                 elif cmd == '0':
                     vehicle_blinkers = 0x00
+                elif cmd == 't':
+                    test_button_active = 0xFF if test_button_active == 0 else 0
+                    if test_button_active == 0:
+                        # Releasing test mode: reset everything to idle!
+                        vehicle_throttle = 127
+                        vehicle_steer = 0
+                        vehicle_brake = 0
                 
     except KeyboardInterrupt:
         keep_running = False

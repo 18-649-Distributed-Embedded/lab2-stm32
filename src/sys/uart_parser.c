@@ -5,7 +5,9 @@
 #include "sys/steering.h"
 #include "sys/blinkers_control.h"
 
-atomic_t mailbox_drivetrain = ATOMIC_INIT(0);
+// 127 is the center idle value for throttle. If we initialize to 0, 
+// the car will jerk backwards if failsafe clears before the first motion packet.
+atomic_t mailbox_drivetrain = ATOMIC_INIT(127 << 16);
 atomic_t mailbox_steering = ATOMIC_INIT(0);
 atomic_t mailbox_blinkers = ATOMIC_INIT(0);
 
