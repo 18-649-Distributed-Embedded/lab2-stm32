@@ -1,0 +1,9 @@
+mainmenu "Lab 2 STM32 Application Configuration"
+
+source "Kconfig.zephyr"
+
+config APP_DEBUG_LOGGING
+    bool "Enable debug printk logging"
+    default y
+    help
+      Enable this option to allow debug logging via printk throughout the application.

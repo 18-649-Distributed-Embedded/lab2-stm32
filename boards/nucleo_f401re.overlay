@@ -1,0 +1,124 @@
+/ {
+    aliases {
+        // Turn Signal LEDs
+        led-fr = &led_fr;
+        led-fl = &led_fl;
+        led-rr = &led_rr;
+        led-rl = &led_rl;
+
+        // Drivetrain H-Bridge
+        dir-r1 = &dir_r1;
+        dir-r2 = &dir_r2;
+        dir-l1 = &dir_l1;
+        dir-l2 = &dir_l2;
+        pwm-r = &pwm_r;
+        pwm-l = &pwm_l;
+
+        // Steering Servo
+        pwm-servo = &pwm_servo;
+    };
+
+    drivetrain_dir {
+        compatible = "gpio-leds";
+        dir_r1: dir_r1 { gpios = <&gpiob 14 GPIO_ACTIVE_HIGH>; };
+        dir_r2: dir_r2 { gpios = <&gpiob 15 GPIO_ACTIVE_HIGH>; };
+        dir_l1: dir_l1 { gpios = <&gpiob 12 GPIO_ACTIVE_HIGH>; };
+        dir_l2: dir_l2 { gpios = <&gpiob 13 GPIO_ACTIVE_HIGH>; };
+    };
+
+    drivetrain_pwm {
+        compatible = "pwm-leds";
+        pwm_r: pwm_r { pwms = <&pwm3 2 100000 PWM_POLARITY_NORMAL>; }; 
+        pwm_l: pwm_l { pwms = <&pwm3 1 100000 PWM_POLARITY_NORMAL>; }; 
+    };
+
+    servo_pwm {
+        compatible = "pwm-leds";
+        pwm_servo: pwm_servo {
+            pwms = <&pwm4 1 20000000 PWM_POLARITY_NORMAL>; 
+        };
+    };
+
+    leds {
+        compatible = "gpio-leds";
+
+        led_fr: front-right {
+            gpios = <&gpiob 2 GPIO_ACTIVE_HIGH>;
+            label = "Front Right Turn Signal";
+        };
+
+        led_fl: front-left {
+            gpios = <&gpiob 1 GPIO_ACTIVE_HIGH>;
+            label = "Front Left Turn Signal";
+        };
+
+        led_rr: rear-right {
+            gpios = <&gpiob 5 GPIO_ACTIVE_HIGH>;
+            label = "Rear Right Turn Signal";
+        };
+
+        led_rl: rear-left {
+            gpios = <&gpiob 4 GPIO_ACTIVE_HIGH>;
+            label = "Rear Left Turn Signal";
+        };
+    };
+};
+
+// Drivetrain PWM Timer
+&timers3 {
+    status = "okay";
+    pwm3: pwm {
+        status = "okay";
+        pinctrl-0 = <&tim3_ch1_pa6 &tim3_ch2_pa7>;
+        pinctrl-names = "default";
+    };
+};
+
+// Steering PWM Timer
+&timers4 {
+    status = "okay";
+    st,prescaler = <83>;
+    
+    pwm4: pwm {
+        status = "okay";
+        pinctrl-0 = <&tim4_ch1_pb6>;
+        pinctrl-names = "default";
+    };
+};
+
+// Current Sensor ADC
+&adc1 {
+    status = "okay";
+    pinctrl-0 = <&adc1_in10_pc0 &adc1_in11_pc1 &adc1_in8_pb0>;
+    pinctrl-names = "default";
+};
+
+// Encoder Pullups
+&tim1_ch1_pa8  { bias-pull-up; };
+&tim1_ch2_pa9  { bias-pull-up; };
+&tim2_ch1_pa15 { bias-pull-up; };
+&tim2_ch2_pa1  { bias-pull-up; };
+
+// Right Encoder Timer
+&timers1 {
+    status = "okay";
+    qdec1: qdec {
+        status = "okay";
+        compatible = "st,stm32-qdec";
+        pinctrl-0 = <&tim1_ch1_pa8 &tim1_ch2_pa9>;
+        pinctrl-names = "default";
+        st,counts-per-revolution = <360>; 
+    };
+};
+
+// Left Encoder Timer
+&timers2 {
+    status = "okay";
+    qdec2: qdec {
+        status = "okay";
+        compatible = "st,stm32-qdec";
+        pinctrl-0 = <&tim2_ch1_pa15 &tim2_ch2_pa1>;
+        pinctrl-names = "default";
+        st,counts-per-revolution = <360>;
+    };
+};
