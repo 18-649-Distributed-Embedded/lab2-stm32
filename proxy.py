@@ -124,7 +124,7 @@ def main():
     global keep_running, vehicle_steer, vehicle_throttle, vehicle_brake, vehicle_blinkers, test_button_active
     
     parser = argparse.ArgumentParser(description="STM32 CAN-over-UART Proxy")
-    parser.add_argument('-p', '--port', default='/dev/ttyACM1', help='Serial port')
+    parser.add_argument('-p', '--port', default='/dev/ttyACM0', help='Serial port')
     parser.add_argument('-b', '--baud', default=115200, type=int, help='Baud rate')
     args = parser.parse_args()
 

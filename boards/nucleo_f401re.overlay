@@ -96,7 +96,7 @@
 // Encoder Pullups
 &tim1_ch1_pa8  { bias-pull-up; };
 &tim1_ch2_pa9  { bias-pull-up; };
-&tim2_ch1_pa15 { bias-pull-up; };
+&tim2_ch1_pa0  { bias-pull-up; };
 &tim2_ch2_pa1  { bias-pull-up; };
 
 // Right Encoder Timer
@@ -108,17 +108,26 @@
         pinctrl-0 = <&tim1_ch1_pa8 &tim1_ch2_pa9>;
         pinctrl-names = "default";
         st,counts-per-revolution = <360>; 
+        st,encoder-mode = <3>;
     };
 };
 
 // Left Encoder Timer
 &timers2 {
     status = "okay";
+    
+    // Disable the default PWM driver on TIM2 to prevent it from 
+    // overriding our Quadrature Decoder configuration!
+    pwm2: pwm {
+        status = "disabled";
+    };
+
     qdec2: qdec {
         status = "okay";
         compatible = "st,stm32-qdec";
-        pinctrl-0 = <&tim2_ch1_pa15 &tim2_ch2_pa1>;
+        pinctrl-0 = <&tim2_ch1_pa0 &tim2_ch2_pa1>;
         pinctrl-names = "default";
         st,counts-per-revolution = <360>;
+        st,encoder-mode = <3>;
     };
 };
