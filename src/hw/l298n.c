@@ -71,13 +71,11 @@ void l298n_set_left(int16_t val)
 }
 
 void l298n_brake(void) {
-    // Fast Motor Stop (Aggressive Braking) requires IN1=1, IN2=1, ENA=1
-    // This shorts the motor coils, dissipating the motor's kinetic energy instantly.
     gpio_pin_set_dt(&dir_r1, 1);
     gpio_pin_set_dt(&dir_r2, 1);
-    pwm_set_pulse_dt(&pwm_r, pwm_r.period); // 100% duty cycle
+    pwm_set_pulse_dt(&pwm_r, pwm_r.period);
 
     gpio_pin_set_dt(&dir_l1, 1);
     gpio_pin_set_dt(&dir_l2, 1);
-    pwm_set_pulse_dt(&pwm_l, pwm_l.period); // 100% duty cycle
+    pwm_set_pulse_dt(&pwm_l, pwm_l.period);
 }

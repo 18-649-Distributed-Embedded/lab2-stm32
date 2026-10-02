@@ -12,7 +12,7 @@ atomic_t mailbox_steering = ATOMIC_INIT(0);
 atomic_t mailbox_blinkers = ATOMIC_INIT(0);
 
 // UART Device
-static const struct device *uart_dev = DEVICE_DT_GET(DT_NODELABEL(usart2));
+static const struct device *uart_dev = DEVICE_DT_GET(DT_NODELABEL(usart6));
 
 #define FRAME_SYNC_BYTE 0xAA
 #define FRAME_END_BYTE  0x55
@@ -152,6 +152,6 @@ int uart_parser_init(void) {
     uart_irq_callback_set(uart_dev, uart_rx_isr);
     uart_irq_rx_enable(uart_dev);
 
-    DEBUG_PRINT("UART parser initialized on usart2 (Hardware ISR Mode)\n");
+    DEBUG_PRINT("UART parser initialized on usart6 (Hardware ISR Mode)\n");
     return 0;
 }

@@ -46,9 +46,11 @@ K_TIMER_DEFINE(pid_timer, pid_timer_isr, NULL);
 #define DRIVETRAIN_THREAD_STACK_SIZE 1024
 #define DRIVETRAIN_THREAD_PRIORITY   1 // High priority for control loop
 
+volatile int32_t dt_target_tps = 0;
+volatile int32_t dt_filtered_tps_l = 0;
+volatile int32_t dt_filtered_tps_r = 0;
+
 static void drivetrain_thread_func(void *p1, void *p2, void *p3) {
-    int debug_counter = 0;
-    
     // PID State
     int32_t filtered_tps_l = 0;
     int32_t filtered_tps_r = 0;
@@ -72,10 +74,9 @@ static void drivetrain_thread_func(void *p1, void *p2, void *p3) {
             filtered_tps_l = 0;
             filtered_tps_r = 0;
             
-            if (++debug_counter >= 1000) {
-                DEBUG_PRINT("[Drivetrain] BRAKED/ESTOP. Throttle: %d, BrakeActive: %d, Flags: %d\n", throttle, brake_active, (int)atomic_get(&system_safety_flags));
-                debug_counter = 0;
-            }
+            dt_target_tps = 0;
+            dt_filtered_tps_l = 0;
+            dt_filtered_tps_r = 0;
             continue;
         }
 
@@ -129,12 +130,10 @@ static void drivetrain_thread_func(void *p1, void *p2, void *p3) {
         l298n_set_left(out_l);
         l298n_set_right(out_r);
 
-        // Debug logging (1Hz)
-        if (++debug_counter >= 1000) {
-            DEBUG_PRINT("[PID] Tgt: %d | L_TPS: %d, R_TPS: %d | L_Out: %d, R_Out: %d\n", 
-                        target_tps, filtered_tps_l, filtered_tps_r, out_l, out_r);
-            debug_counter = 0;
-        }
+        // Expose state for slow health logging
+        dt_target_tps = target_tps;
+        dt_filtered_tps_l = filtered_tps_l;
+        dt_filtered_tps_r = filtered_tps_r;
     }
 }
 

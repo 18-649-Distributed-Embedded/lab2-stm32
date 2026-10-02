@@ -131,3 +131,10 @@
         st,encoder-mode = <3>;
     };
 };
+// Command UART from Raspberry Pi
+&usart6 {
+    pinctrl-0 = <&usart6_tx_pc6 &usart6_rx_pc7>;
+    pinctrl-names = "default";
+    current-speed = <115200>;
+    status = "okay";
+};

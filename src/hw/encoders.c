@@ -18,7 +18,7 @@ int encoders_init(void) {
         return -1;
     }
 
-    // Invert right encoder polarity to match the left encoder's physical orientation
+    // Invert right encoder polarity to match left encoder's physical orientation
     TIM1->CCER |= TIM_CCER_CC1P;
 
     TIM1->CNT = 0;

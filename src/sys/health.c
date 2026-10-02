@@ -13,7 +13,7 @@
 #define HEALTH_LOOP_DELAY_MS     20
 #define FAIL_SAFE_TIMEOUT_MS     150
 
-static const struct device *uart_dev = DEVICE_DT_GET(DT_NODELABEL(usart2));
+static const struct device *uart_dev = DEVICE_DT_GET(DT_NODELABEL(usart6));
 
 // Initialize safety interlock with WATCHDOG set (fail-safe by default until parser talks)
 atomic_t system_safety_flags = ATOMIC_INIT(BIT(SAFETY_FLAG_WATCHDOG_TIMEOUT));
@@ -46,6 +46,7 @@ static void send_status_frame(void) {
 static void health_thread_func(void *p1, void *p2, void *p3) {
     bool last_was_failsafe = true;
     uint32_t last_deadline_misses = 0;
+    int print_divider = 0;
 
     while (1) {
         // Watchdog check
@@ -73,6 +74,21 @@ static void health_thread_func(void *p1, void *p2, void *p3) {
         }
 
         send_status_frame();
+
+        // 1Hz Slow Telemetry Output
+        if (++print_divider >= 50) {
+            uint32_t dt_val = atomic_get(&mailbox_drivetrain);
+            uint8_t throttle = (dt_val >> 16) & 0xFF;
+            uint8_t brake = dt_val & 0xFF;
+            int8_t steer = (int8_t)atomic_get(&mailbox_steering);
+
+            DEBUG_PRINT("[1Hz STATE] RxBytes: %u, Pkts: %u | Flags: %d | Thr: %d, Brk: %d, Str: %d | TargetTPS: %d, L_TPS: %d, R_TPS: %d\n",
+                        rx_byte_count, parse_success_count,
+                        (int)atomic_get(&system_safety_flags),
+                        throttle, brake, steer,
+                        (int)dt_target_tps, (int)dt_filtered_tps_l, (int)dt_filtered_tps_r);
+            print_divider = 0;
+        }
 
         k_msleep(HEALTH_LOOP_DELAY_MS);
     }

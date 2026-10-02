@@ -16,7 +16,6 @@ static void blinkers_thread_func(void *p1, void *p2, void *p3)
 {
     while (1) {
         // Wait for a new Turn_Sync or Hazard_Sync command from the upstream proxy.
-        // We use a timeout so that if the proxy dies, we still evaluate safety flags!
         k_sem_take(&blinkers_sem, K_MSEC(50));
 
         uint32_t bk_val = atomic_get(&mailbox_blinkers);
@@ -33,10 +32,9 @@ static void blinkers_thread_func(void *p1, void *p2, void *p3)
         blinkers_set_rear_right(false);
 
         if (is_failsafe) {
-            // Failsafe! The Pi proxy might be dead, so we MUST rely on our own local clock 
-            // for the 2Hz hazard flash to meet requirements.
+            // Pi proxy might be dead, so rely on local clock 
             uint32_t time_ms = k_uptime_get_32();
-            bool on = (time_ms % 500) < 250; // 2Hz flash
+            bool on = (time_ms % 500) < 250;
             blinkers_set_front_left(on);
             blinkers_set_front_right(on);
             blinkers_set_rear_left(on);
@@ -49,7 +47,7 @@ static void blinkers_thread_func(void *p1, void *p2, void *p3)
             blinkers_set_rear_left(on);
             blinkers_set_rear_right(on);
         } else {
-            // Normal operation driven purely by Turn_Sync (1Hz clock from Pi)
+            // Normal operation driven by Turn_Sync (1Hz clock from Pi)
             if (turn_req == BLINKER_LEFT) {
                 blinkers_set_front_left(turn_sync);
                 blinkers_set_rear_left(turn_sync);
